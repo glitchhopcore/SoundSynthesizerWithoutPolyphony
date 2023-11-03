@@ -8,10 +8,15 @@ using namespace std;
 // Global variable that gets updated, responsible for setting output frequency
 double dFrequencyOutput = 0.0;
 
+//Function for converting Hertz to Angular Frequency for math functions 
+double w(double dHertz) {
+	return dHertz * 2.0 * PI;
+}
+
 // Creating a function to change the shape of the waveform that we have created, dTime tells about the time that has elapsed.
 double MakeNoise(double dTime) {
-	// Returning a sine wave function with 440Hz being the note 'A'
-	return 0.2 * (sin(dFrequencyOutput * 2 * PI * dTime) * sin((dFrequencyOutput + 20)* 2 * PI * dTime));
+	// Returning sine wave with a given frequency, dTime representing the time elapsed
+	return 0.2 * sin(w(dFrequencyOutput) * dTime);
 }
 
 int main()
@@ -22,6 +27,15 @@ int main()
 	// Display all the found devices
 	for (auto d : devices)
 		wcout << "Found Object Device: " << d << endl;
+
+	// Display a keyboard
+	wcout << endl <<
+		"|   |   |   |   |   | |   |   |   |   | |   | |   |   |   |" << endl <<
+		"|   | S |   |   | F | | G |   |   | J | | K | | L |   |   |" << endl <<
+		"|   |___|   |   |___| |___|   |   |___| |___| |___|   |   |__" << endl <<
+		"|     |     |     |     |     |     |     |     |     |     |" << endl <<
+		"|  Z  |  X  |  C  |  V  |  B  |  N  |  M  |  ,  |  .  |  /  |" << endl <<
+		"|_____|_____|_____|_____|_____|_____|_____|_____|_____|_____|" << endl << endl;
 
 	// Create a sound instance, using short as a 16 bit (4 byte) estimation of the sine wave, round((2^b - 1) * A)/(2^b - 1) approximates the sine wave to closest bitwise form
 	// Arguments: OutputDevice, SampleRate, Channels, Blocks and BlockSamples 
