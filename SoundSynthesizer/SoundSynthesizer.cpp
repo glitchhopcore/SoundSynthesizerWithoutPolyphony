@@ -53,7 +53,7 @@ int main()
 		bool bKeyPressed = false;
 		for (int k = 0; k < 15; k++) {
 			// The 0x8000 bit of GetAsyncKeyState gives you the real time state of the key 
-			if (GetAsyncKeyState((unsigned char)("ZSXCFVGBNJMK\xbcL\xbe"[k])) & 0x8000) {
+			if (GetAsyncKeyState((unsigned char)("ZSXCFVGBNJMK\xbcL\xbe\xbf"[k])) & 0x8000) {
 				dFrequencyOutput = dOctaveBaseFrequency * pow(d12thRootOf2, k);
 				bKeyPressed = true;
 			}
