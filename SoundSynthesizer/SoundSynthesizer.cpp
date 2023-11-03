@@ -11,7 +11,7 @@ double dFrequencyOutput = 0.0;
 // Creating a function to change the shape of the waveform that we have created, dTime tells about the time that has elapsed.
 double MakeNoise(double dTime) {
 	// Returning a sine wave function with 440Hz being the note 'A'
-	return 0.2 * sin(dFrequencyOutput * 2 * PI * dTime);
+	return 0.2 * (sin(dFrequencyOutput * 2 * PI * dTime) * sin((dFrequencyOutput + 20)* 2 * PI * dTime));
 }
 
 int main()
