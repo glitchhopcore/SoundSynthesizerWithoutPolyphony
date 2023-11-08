@@ -1,130 +1,133 @@
-// SoundSynthesizer.cpp : This file contains the 'main' function. Program execution begins and ends there.
-// Remember to add winmm.lib in the input dependencies from the project menu, also set the debug from x64 to x86 to avoid exception thrown error
-
 #include <iostream>
-using namespace std;
 #include "olcNoiseMaker.h"
+using namespace std;
 
-// Global Variables
-atomic<double> dFrequencyOutput = 0.0; 
-const double dOctaveBaseFrequency = 110.0; // Base Frequency of the A2 Note
-const double d12thRootOf2 = pow(2.0, 1.0 / 12.0); // Since 12 Notes per octave and the frequency doubles
-sEnvelopeADSR envelope;
-
-//Function for converting Hertz to Angular Frequency for math functions 
-double w(double dHertz) {
+// Converts Hertz to Radians
+double w(double dHertz){
 	return dHertz * 2.0 * PI;
 }
 
-double osc(double dHertz, double dTime, int nType) {
-	switch(nType) {
-	case 0: // Sine Wave
+// General purpose oscillator
+#define OSC_SINE 0
+#define OSC_SQUARE 1
+#define OSC_TRIANGLE 2
+#define OSC_SAW_DIG 3
+#define OSC_NOISE 4
+
+double osc(double dHertz, double dTime, int nType = OSC_SINE){
+	switch (nType){
+	case OSC_SINE: // Sine wave bewteen -1 and +1
 		return sin(w(dHertz) * dTime);
-	case 1: // Square Wave
-		return sin(w(dHertz) * dTime) > 0.0 ? 1.0 : -1.0;
-	case 2: // Triangle Wave
-		return asin(sin(w(dHertz) * dTime)) * (2.0/PI);
-	case 3: // Saw Wave 
+
+	case OSC_SQUARE: // Square wave between -1 and +1
+		return sin(w(dHertz) * dTime) > 0 ? 1.0 : -1.0;
+
+	case OSC_TRIANGLE: // Triangle wave between -1 and +1
+		return asin(sin(w(dHertz) * dTime)) * (2.0 / PI);
+
+	case OSC_SAW_DIG: // Saw Wave (optimised / harsh / fast)
 		return (2.0 / PI) * (dHertz * PI * fmod(dTime, 1.0 / dHertz) - (PI / 2.0));
-	case 4:
-		return 2.0 * ((double)rand() / (double)(RAND_MAX)) - 1.0;
-	default: 
+
+	case OSC_NOISE: // Pseudorandom noise
+		return 2.0 * ((double)rand() / (double)RAND_MAX) - 1.0;
+
+	default:
 		return 0.0;
 	}
 }
 
-// Creating a function to change the shape of the waveform that we have created, dTime tells about the time that has elapsed.
-double MakeNoise(double dTime) {
-	// Returning oscillators, based on the type provided to the function, here we can also use osc part as a composite of more than 1 function generations
-	double dOutput = envelope.GetAmplitude(dTime) * osc(dFrequencyOutput, dTime, 3); 
-	return dOutput * 0.2; // Master Volume
-}
-
-struct sEnvelopeADSR {
+// Amplitude (Attack, Decay, Sustain, Release) Envelope
+struct sEnvelopeADSR{
 	double dAttackTime;
 	double dDecayTime;
-	double dReleaseTime;
-
-	
 	double dSustainAmplitude;
-	
-	// The amplitude of the initial attack may go to a different amplitude than the one it will rest at, thus to keep track of the starting amplitude
+	double dReleaseTime;
 	double dStartAmplitude;
-	
-	// Times for when the user has pressed and released the key, based on which the envelope duration will be decided
-	double dTriggerOnTime;
 	double dTriggerOffTime;
-
-	// State of Key 
+	double dTriggerOnTime;
 	bool bNoteOn;
 
-	// Default Values
-	sEnvelopeADSR() {
-		dAttackTime = 0.01;
+	sEnvelopeADSR(){
+		dAttackTime = 0.10;
 		dDecayTime = 0.01;
-		dReleaseTime = 0.02;
+		dStartAmplitude = 1.0;
 		dSustainAmplitude = 0.8;
-		dStartAmplitude = 0.02;
-		dTriggerOnTime = 0.0;
+		dReleaseTime = 0.20;
+		bNoteOn = false;
 		dTriggerOffTime = 0.0;
+		dTriggerOnTime = 0.0;
+	}
+
+	// Call when key is pressed
+	void NoteOn(double dTimeOn){
+		dTriggerOnTime = dTimeOn;
+		bNoteOn = true;
+	}
+
+	// Call when key is released
+	void NoteOff(double dTimeOff){
+		dTriggerOffTime = dTimeOff;
 		bNoteOn = false;
 	}
 
-	// The Envelope can be indexed at any point in time by the make noise function, thus we should return the amplitude of the function for the given time
-
-	double GetAmplitude(double dTime) {
+	// Get the correct amplitude at the requested point in time
+	double GetAmplitude(double dTime){
 		double dAmplitude = 0.0;
-		// The time after the note was pressed 
 		double dLifeTime = dTime - dTriggerOnTime;
-		if (bNoteOn) {
-			// Attack
-			if (dLifeTime <= dAttackTime) {
+
+		if (bNoteOn){
+			if (dLifeTime <= dAttackTime){
+				// In attack Phase - approach max amplitude
 				dAmplitude = (dLifeTime / dAttackTime) * dStartAmplitude;
 			}
-			// Decay
-			if (dLifeTime > dAttackTime && dLifeTime <= (dAttackTime+dDecayTime)) {
-				dAmplitude = ((dLifeTime - dAttackTime)/ dDecayTime) * (dSustainAmplitude - dStartAmplitude) + dStartAmplitude;
+
+			if (dLifeTime > dAttackTime && dLifeTime <= (dAttackTime + dDecayTime)){
+				// In decay phase - reduce to sustained amplitude
+				dAmplitude = ((dLifeTime - dAttackTime) / dDecayTime) * (dSustainAmplitude - dStartAmplitude) + dStartAmplitude;
 			}
-			// Sustain 
-			if (dLifeTime > (dAttackTime + dDecayTime)) {
+
+			if (dLifeTime > (dAttackTime + dDecayTime)){
+				// In sustain phase - dont change until note released
 				dAmplitude = dSustainAmplitude;
 			}
 		}
-		else {
-			// Release
-			dAmplitude = ((dTime - dTriggerOffTime) / (dReleaseTime)) * (0.0 - dSustainAmplitude) + dSustainAmplitude;
+		else{
+			// Note has been released, so in release phase
+			dAmplitude = ((dTime - dTriggerOffTime) / dReleaseTime) * (0.0 - dSustainAmplitude) + dSustainAmplitude;
 		}
 
-		// When dAmplitude is too small, set it to zero
-		if (dAmplitude <= 0.0001) {
-			dAmplitude = 0;
-		}
+		// Amplitude should not be negative
+		if (dAmplitude <= 0.0001)
+			dAmplitude = 0.0;
 
 		return dAmplitude;
 	}
-
-	// Methods for Note ON and OFF
-	
-	void NoteOn(double dTime) {
-		dTriggerOnTime = dTime;
-		bNoteOn = true;
-	}
-	
-	void NoteOff(double dTime) {
-		dTriggerOffTime = dTime;
-		bNoteOn = false;
-	}
-
 };
 
-int main()
-{
-	// Get a list of all sound hardware, Enumerate uses mmepi.h command to get the count of connected audio devices and then iterates over them returning as a vector of strings
+
+
+
+// Global synthesizer variables
+atomic<double> dFrequencyOutput = 0.0;			// dominant output frequency of instrument, i.e. the note
+sEnvelopeADSR envelope;							// amplitude modulation of output to give texture, i.e. the timbre
+double dOctaveBaseFrequency = 110.0; // A2		// frequency of octave represented by keyboard
+double d12thRootOf2 = pow(2.0, 1.0 / 12.0);		// assuming western 12 notes per ocatve
+
+// Function used by olcNoiseMaker to generate sound waves
+double MakeNoise(double dTime){
+	// Output the product of GetAmplitude envelope function and the oscillator associated with our required waveform
+	double dOutput = envelope.GetAmplitude(dTime) * (1.0 * osc(dFrequencyOutput * 0.5, dTime, OSC_SINE));
+	// Master Volume as a product 
+	return dOutput * 0.4; 
+}
+
+int main(){
+	// Get all sound hardware
 	vector<wstring> devices = olcNoiseMaker<short>::Enumerate();
-	
-	// Display all the found devices
-	for (auto d : devices)
-		wcout << "Found Object Device: " << d << endl;
+
+	// Display findings
+	for (auto d : devices) wcout << "Found Output Device: " << d << endl;
+	wcout << "Using Device: " << devices[0] << endl;
 
 	// Display a keyboard
 	wcout << endl <<
@@ -135,30 +138,39 @@ int main()
 		"|  Z  |  X  |  C  |  V  |  B  |  N  |  M  |  ,  |  .  |  /  |" << endl <<
 		"|_____|_____|_____|_____|_____|_____|_____|_____|_____|_____|" << endl << endl;
 
-	// Create a sound instance, using short as a 16 bit (4 byte) estimation of the sine wave, round((2^b - 1) * A)/(2^b - 1) approximates the sine wave to closest bitwise form
-	// Arguments: OutputDevice, SampleRate, Channels, Blocks and BlockSamples 
+	// Create sound machine!!
 	olcNoiseMaker<short> sound(devices[0], 44100, 1, 8, 512);
 
-	// Linking MakeNoise with the created sound instance
+	// Link noise function with sound machine
 	sound.SetUserFunction(MakeNoise);
 
+	// Sit in loop, capturing keyboard state changes and modify
+	// synthesizer output accordingly
+	int nCurrentKey = -1;
+	bool bKeyPressed = false;
+	while (1){
+		bKeyPressed = false;
+		for (int k = 0; k < 16; k++){
+			if (GetAsyncKeyState((unsigned char)("ZSXCFVGBNJMK\xbcL\xbe\xbf"[k])) & 0x8000){
+				if (nCurrentKey != k){
+					dFrequencyOutput = dOctaveBaseFrequency * pow(d12thRootOf2, k);
+					envelope.NoteOn(sound.GetTime());
+					wcout << "\rNote On : " << sound.GetTime() << "s " << dFrequencyOutput << "Hz";
+					nCurrentKey = k;
+				}
 
-	while (1) {
-		// Adding a keyboard control to the sound played 
-		
-		bool bKeyPressed = false;
-		for (int k = 0; k <= 15; k++) {
-			// The 0x8000 bit of GetAsyncKeyState gives you the real time state of the key 
-			if (GetAsyncKeyState((unsigned char)("ZSXCFVGBNJMK\xbcL\xbe\xbf"[k])) & 0x8000) {
-				dFrequencyOutput = dOctaveBaseFrequency * pow(d12thRootOf2, k);
-				envelope.NoteOn(sound.GetTime());
 				bKeyPressed = true;
 			}
 		}
 
-		if(!bKeyPressed) {
-			dFrequencyOutput = 0.0;
-			envelope.NoteOff(sound.GetTime());
+		if (!bKeyPressed){
+			if (nCurrentKey != -1){
+				wcout << "\rNote Off: " << sound.GetTime() << "s                        ";
+				envelope.NoteOff(sound.GetTime());
+				nCurrentKey = -1;
+			}
 		}
 	}
+
+	return 0;
 }
