@@ -48,11 +48,11 @@ struct sEnvelopeADSR{
 	bool bNoteOn;
 
 	sEnvelopeADSR(){
-		dAttackTime = 0.10;
+		dAttackTime = 0.01;
 		dDecayTime = 0.01;
 		dStartAmplitude = 1.0;
 		dSustainAmplitude = 0.8;
-		dReleaseTime = 0.20;
+		dReleaseTime = 0.01;
 		bNoteOn = false;
 		dTriggerOffTime = 0.0;
 		dTriggerOnTime = 0.0;
@@ -116,7 +116,7 @@ double d12thRootOf2 = pow(2.0, 1.0 / 12.0);		// assuming western 12 notes per oc
 // Function used by olcNoiseMaker to generate sound waves
 double MakeNoise(double dTime){
 	// Output the product of GetAmplitude envelope function and the oscillator associated with our required waveform
-	double dOutput = envelope.GetAmplitude(dTime) * (1.0 * osc(dFrequencyOutput * 0.5, dTime, OSC_SINE));
+	double dOutput = envelope.GetAmplitude(dTime) * (4.0 * osc(dFrequencyOutput, dTime, OSC_SINE));
 	// Master Volume as a product 
 	return dOutput * 0.4; 
 }
